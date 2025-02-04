@@ -1,7 +1,7 @@
 import re
 from collections import defaultdict
 from typing import Dict, List
-#from pysentimiento import create_analyzer # Removed pysentimiento import
+#from pysentimiento import create_analyzer 
 from transformers import pipeline
 
 import os
@@ -65,44 +65,54 @@ def predict_lyric(data):
             label = prediction['label']
             score = prediction['score']
             probas_dict[label] = score
-    return probas_dict # Return the transformed dictionary
+    return probas_dict # Transformed dictionary
 
 
 def analyze_song_emotion(lyrics: str) -> Dict:
     """
-    Calculates average emotion probabilities for the entire song and prints dominant emotion per sentence.
+    Calculates song emotion based on dominant emotion count per sentence, instead of averaging.
     Returns:
-        ... (rest of analyze_song_emotion function remains the same) ...
+        {
+            "dominant_emotion": "...", # Song's dominant emotion (based on counts)
+            "sentence_dominant_emotions": { # Dominant emotion for each sentence
+                "sentence_1": "...",
+                "sentence_2": "...",
+                ...
+            },
+            "dominant_emotion_counts": { # Count of sentences with each dominant emotion
+                "emotion_1": count_1,
+                "emotion_2": count_2,
+                ...
+            },
+            "sentence_count": total_sentences
+        }
     """
     sentences = chunk_lyrics_to_sentences(lyrics)
+    sentence_dominant_emotions = {} # Store dominant emotion for each sentence
+    dominant_emotion_counts = defaultdict(int) # Count occurrences of each dominant emotion
 
-    total_probas = defaultdict(float)
-    emotion_counts = defaultdict(int)
-
-    for sentence in sentences:
+    for i, sentence in enumerate(sentences): # Enumerate to keep track of sentence index
         if not sentence.strip():
             continue
 
         print('sentence----------------------------------------------')
         print(sentence)
-        result = predict_lyric(sentence) # Now predict_lyric returns probas_dict
+        result = predict_lyric(sentence) #predict_lyric returns probas_dict
 
         # Determine dominant emotion for the sentence
         sentence_dominant_emotion = max(result, key=result.get, default="neutral") if result else "neutral"
         print(f"Sentence Dominant Emotion: {sentence_dominant_emotion}") # Print sentence dominant emotion
 
-        for emotion, prob in result.items(): # Iterate through the dictionary directly
-            total_probas[emotion] += prob
-            emotion_counts[emotion] += prob
+        sentence_dominant_emotions[f"sentence_{i+1}"] = sentence_dominant_emotion # Store sentence dominant emotion
+        dominant_emotion_counts[sentence_dominant_emotion] += 1 # Increment count for this dominant emotion
 
-    avg_probas = {emotion: total / len(sentences)
-                 for emotion, total in total_probas.items()} if sentences else {}
-
-    dominant_emotion = max(avg_probas, key=avg_probas.get, default="neutral") if avg_probas else "neutral"
+    # Determine song dominant emotion based on counts
+    song_dominant_emotion = max(dominant_emotion_counts, key=dominant_emotion_counts.get, default="neutral") if dominant_emotion_counts else "neutral"
 
     return {
-        "dominant_emotion": dominant_emotion,
-        "average_probas": avg_probas,
+        "dominant_emotion": song_dominant_emotion,
+        "sentence_dominant_emotions": sentence_dominant_emotions, # Return sentence-level dominant emotions
+        "dominant_emotion_counts": dominant_emotion_counts, # Return counts of each dominant emotion
         "sentence_count": len(sentences)
     }
 
@@ -110,7 +120,11 @@ def analyze_song_emotion(lyrics: str) -> Dict:
 lyrics_example_continuous_string = "[Verse 1] We clawed, we chained, our hearts in vain We jumped, never asking why We kissed, I fell under your spell A love no one could deny  [Pre-Chorus] Don't you ever say I just walked away I will always want you I can't live a lie, running for my life I will always want you  [Chorus] I came in like a wrecking ball I never hit so hard in love All I wanted was to break your walls All you ever did was wreck me Yeah, you, you wreck me  [Verse 2] I put you high up in the sky And now, you're not coming down It slowly turned, you let me burn And now, we're ashes on the ground  [Pre-Chorus] Don't you ever say I just walked away I will always want you I can't live a lie, running for my life I will always want you  [Chorus] I came in like a wrecking ball I never hit so hard in love All I wanted was to break your walls All you ever did was wreck me I came in like a wrecking ball Yeah, I just closed my eyes and swung Left me crashing in a blazing fall All you ever did was wreck me Yeah, you, you wreck me  [Bridge] I never meant to start a war I just wanted you to let me in And instead of using force I guess I should've let you win I never meant to start a war I just wanted you to let me in I guess I should've let you win  [Interlude] Don't you ever say I just walked away I will always want you  [Chorus] I came in like a wrecking ball I never hit so hard in love All I wanted was to break your walls All you ever did was wreck me I came in like a wrecking ball Yeah, I just closed my eyes and swung Left me crashing in a blazing fall All you ever did was wreck me Yeah, you, you wreck me Yeah, you, you wreck me  [Produced by Dr. Luke and Cirkut] [Video by Terry Richardson]" # No \n characters
 #lyrics_example_continuous_string = "People in the world is really worried because of Coronavirus"
 analysis = analyze_song_emotion(lyrics_example_continuous_string)
-print(f"Dominant Emotion: {analysis['dominant_emotion']}")
-print("Average Probabilities:")
-for emotion, prob in analysis["average_probas"].items():
-    print(f"{emotion}: {prob:.3f}")
+print(f"Song Dominant Emotion (by count): {analysis['dominant_emotion']}") # Updated print statement
+print("\nSentence Dominant Emotions:") # Added section for sentence emotions
+for sentence_num, emotion in analysis["sentence_dominant_emotions"].items():
+    print(f"{sentence_num}: {emotion}")
+print("\nDominant Emotion Counts:") # Added section for emotion counts
+for emotion, count in analysis["dominant_emotion_counts"].items():
+    print(f"{emotion}: {count}")
+print(f"\nTotal Sentences: {analysis['sentence_count']}") # Print total sentences
