@@ -1,7 +1,11 @@
 import re
 from collections import defaultdict
 from typing import Dict, List
-from pysentimiento import create_analyzer
+#from pysentimiento import create_analyzer # Removed pysentimiento import
+from transformers import pipeline
+
+import os
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 def chunk_lyrics_to_sentences(lyrics):
     """
@@ -45,14 +49,28 @@ def chunk_lyrics_to_sentences(lyrics):
 
 def predict_lyric(data):
     """Returns AnalyzerOutput with emotion probabilities"""
-    analyzer = create_analyzer(task="emotion", lang="en")
-    a = analyzer.predict(data)
-    print(a)
-    return a
+    classifier = pipeline(
+        "text-classification",
+        model="cirimus/modernbert-large-go-emotions",
+        return_all_scores=True
+    )
+
+    predictions = classifier(data)
+    #print(predictions) # Keep print for debugging if needed
+
+    # Transform predictions to the format expected by analyze_song_emotion (.probas)
+    probas_dict = {}
+    if predictions and predictions[0]: # Ensure predictions and the first element exist
+        for prediction in predictions[0]: # predictions is a list of lists, we take the first list
+            label = prediction['label']
+            score = prediction['score']
+            probas_dict[label] = score
+    return probas_dict # Return the transformed dictionary
+
 
 def analyze_song_emotion(lyrics: str) -> Dict:
     """
-    Calculates average emotion probabilities for the entire song.
+    Calculates average emotion probabilities for the entire song and prints dominant emotion per sentence.
     Returns:
         ... (rest of analyze_song_emotion function remains the same) ...
     """
@@ -67,9 +85,13 @@ def analyze_song_emotion(lyrics: str) -> Dict:
 
         print('sentence----------------------------------------------')
         print(sentence)
-        result = predict_lyric(sentence)
+        result = predict_lyric(sentence) # Now predict_lyric returns probas_dict
 
-        for emotion, prob in result.probas.items():
+        # Determine dominant emotion for the sentence
+        sentence_dominant_emotion = max(result, key=result.get, default="neutral") if result else "neutral"
+        print(f"Sentence Dominant Emotion: {sentence_dominant_emotion}") # Print sentence dominant emotion
+
+        for emotion, prob in result.items(): # Iterate through the dictionary directly
             total_probas[emotion] += prob
             emotion_counts[emotion] += prob
 
@@ -85,8 +107,8 @@ def analyze_song_emotion(lyrics: str) -> Dict:
     }
 
 
-#lyrics_example_continuous_string = "[Verse 1] We clawed, we chained, our hearts in vain We jumped, never asking why We kissed, I fell under your spell A love no one could deny  [Pre-Chorus] Don't you ever say I just walked away I will always want you I can't live a lie, running for my life I will always want you  [Chorus] I came in like a wrecking ball I never hit so hard in love All I wanted was to break your walls All you ever did was wreck me Yeah, you, you wreck me  [Verse 2] I put you high up in the sky And now, you're not coming down It slowly turned, you let me burn And now, we're ashes on the ground  [Pre-Chorus] Don't you ever say I just walked away I will always want you I can't live a lie, running for my life I will always want you  [Chorus] I came in like a wrecking ball I never hit so hard in love All I wanted was to break your walls All you ever did was wreck me I came in like a wrecking ball Yeah, I just closed my eyes and swung Left me crashing in a blazing fall All you ever did was wreck me Yeah, you, you wreck me  [Bridge] I never meant to start a war I just wanted you to let me in And instead of using force I guess I should've let you win I never meant to start a war I just wanted you to let me in I guess I should've let you win  [Interlude] Don't you ever say I just walked away I will always want you  [Chorus] I came in like a wrecking ball I never hit so hard in love All I wanted was to break your walls All you ever did was wreck me I came in like a wrecking ball Yeah, I just closed my eyes and swung Left me crashing in a blazing fall All you ever did was wreck me Yeah, you, you wreck me Yeah, you, you wreck me  [Produced by Dr. Luke and Cirkut] [Video by Terry Richardson]" # No \n characters
-lyrics_example_continuous_string = "People in the world is really worried because of Coronavirus"
+lyrics_example_continuous_string = "[Verse 1] We clawed, we chained, our hearts in vain We jumped, never asking why We kissed, I fell under your spell A love no one could deny  [Pre-Chorus] Don't you ever say I just walked away I will always want you I can't live a lie, running for my life I will always want you  [Chorus] I came in like a wrecking ball I never hit so hard in love All I wanted was to break your walls All you ever did was wreck me Yeah, you, you wreck me  [Verse 2] I put you high up in the sky And now, you're not coming down It slowly turned, you let me burn And now, we're ashes on the ground  [Pre-Chorus] Don't you ever say I just walked away I will always want you I can't live a lie, running for my life I will always want you  [Chorus] I came in like a wrecking ball I never hit so hard in love All I wanted was to break your walls All you ever did was wreck me I came in like a wrecking ball Yeah, I just closed my eyes and swung Left me crashing in a blazing fall All you ever did was wreck me Yeah, you, you wreck me  [Bridge] I never meant to start a war I just wanted you to let me in And instead of using force I guess I should've let you win I never meant to start a war I just wanted you to let me in I guess I should've let you win  [Interlude] Don't you ever say I just walked away I will always want you  [Chorus] I came in like a wrecking ball I never hit so hard in love All I wanted was to break your walls All you ever did was wreck me I came in like a wrecking ball Yeah, I just closed my eyes and swung Left me crashing in a blazing fall All you ever did was wreck me Yeah, you, you wreck me Yeah, you, you wreck me  [Produced by Dr. Luke and Cirkut] [Video by Terry Richardson]" # No \n characters
+#lyrics_example_continuous_string = "People in the world is really worried because of Coronavirus"
 analysis = analyze_song_emotion(lyrics_example_continuous_string)
 print(f"Dominant Emotion: {analysis['dominant_emotion']}")
 print("Average Probabilities:")
