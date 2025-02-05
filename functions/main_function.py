@@ -7,6 +7,9 @@ from transformers import pipeline
 import os
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
+
+
+
 def chunk_lyrics_to_sentences(lyrics):
     """
     Chunks lyrics into sentences from a SINGLE CONTINUOUS STRING,
@@ -46,6 +49,8 @@ def chunk_lyrics_to_sentences(lyrics):
         sentences.append(" ".join(current_sentence_words).strip())
 
     return sentences
+#def chunk_lyrics_to_sentences(lyrics):
+#    return re.split(r'\[.*?\]', lyrics)
 
 def predict_lyric(data):
     """Returns AnalyzerOutput with emotion probabilities"""
@@ -97,7 +102,7 @@ def analyze_song_emotion(lyrics: str) -> Dict:
 
         print('sentence----------------------------------------------')
         print(sentence)
-        result = predict_lyric(sentence) #predict_lyric returns probas_dict
+        result = predict_lyric(sentence) # Now predict_lyric returns probas_dict
 
         # Determine dominant emotion for the sentence
         sentence_dominant_emotion = max(result, key=result.get, default="neutral") if result else "neutral"
